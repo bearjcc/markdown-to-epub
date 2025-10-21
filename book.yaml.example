@@ -1,0 +1,25 @@
+# Example configuration file for markdown-to-epub
+# Copy to book.yaml and customize
+
+title: "My Novel Title"
+author: "Your Name"
+language: "en"  # Language code: en, es, fr, de, etc.
+
+# Paths
+input_dir: "manuscript"  # Folder containing chapter-*.md files
+output: "my-novel.epub"  # Output EPUB filename
+cover: "cover.png"       # Cover image (optional)
+
+# Optional metadata
+metadata:
+  publisher: "Your Publisher"
+  published_date: "2025-01-01"
+  description: "A compelling story about..."
+  isbn: "978-0-000000-00-0"
+  series: "Series Name"
+  series_number: 1
+  genre: "Fiction"
+  keywords:
+    - keyword1
+    - keyword2
+
