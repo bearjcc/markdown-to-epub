@@ -62,7 +62,7 @@ class MarkdownToEpub:
         # Cleanup
         self._cleanup()
         
-        print(f"\n✓ SUCCESS: {self.config['output']}")
+        print(f"\nSUCCESS: {self.config['output']}")
         print(f"  Chapters: {len(self.chapters)}")
         print(f"  Size: {os.path.getsize(self.config['output']) / 1024:.1f} KB")
         

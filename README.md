@@ -21,8 +21,13 @@ pip install -r requirements.txt
 
 ## Quick Start
 
+**Try the example first!**
+
 ```bash
-# Basic usage - chapters in manuscript/ folder
+# Test with the included example
+python markdown_to_epub.py --config example/book.yaml
+
+# Then try with your own manuscript
 python markdown_to_epub.py --title "My Novel" --author "Your Name"
 
 # Custom paths
