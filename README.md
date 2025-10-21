@@ -29,17 +29,70 @@ python markdown_to_epub.py --config example/book.yaml
 
 # Then try with your own manuscript
 python markdown_to_epub.py --title "My Novel" --author "Your Name"
+```
 
-# Custom paths
+## Modes of Operation
+
+### 1. Consolidate Mode (for AI review and iteration)
+
+Merge all chapters into a single Markdown file for easy reviewing:
+
+```bash
+python markdown_to_epub.py --consolidate \
+  --input-dir manuscript/ \
+  --output full-novel.md
+```
+
+**Use when:**
+- Sending to AI agents for review
+- Printing for self-review
+- Sharing draft with beta readers
+- Iterating on content (~25 revisions before EPUB)
+
+### 2. Unpackaged EPUB (for Calibre editing)
+
+Create EPUB folder structure without zipping:
+
+```bash
+python markdown_to_epub.py --no-package \
+  --title "My Novel" \
+  --author "Your Name" \
+  --input-dir manuscript/
+```
+
+**Use when:**
+- Editing in Calibre
+- Fine-tuning EPUB structure
+- Manual adjustments needed
+- Creates `_epub_temp/` folder you can import
+
+### 3. Full EPUB (for publishing)
+
+Create packaged EPUB file ready to publish:
+
+```bash
 python markdown_to_epub.py \
   --title "My Novel" \
   --author "Your Name" \
-  --input-dir chapters/ \
+  --input-dir manuscript/ \
   --output my-novel.epub \
   --cover cover.png
+```
 
-# Using config file
-python markdown_to_epub.py --config book.yaml
+**Use when:**
+- Ready for final publication
+- Sending to publisher
+- Self-publishing on platforms
+
+## Absolute Paths Supported
+
+All paths can be absolute or relative:
+
+```bash
+python markdown_to_epub.py \
+  --consolidate \
+  --input-dir "C:\MyNovels\Project\manuscript" \
+  --output "C:\MyNovels\Project\full-draft.md"
 ```
 
 ## Project Structure

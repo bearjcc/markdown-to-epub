@@ -36,6 +36,11 @@ class MarkdownToEpub:
         
     def build(self):
         """Main build process"""
+        # Consolidate mode - merge chapters to single MD
+        if self.config.get('consolidate'):
+            self._consolidate_chapters()
+            return
+        
         print(f"Building EPUB: {self.config['title']}")
         print(f"Author: {self.config['author']}")
         print()
@@ -56,16 +61,72 @@ class MarkdownToEpub:
         self._generate_nav_xhtml()
         self._generate_css()
         
-        # Package EPUB
-        self._package_epub()
+        # Package EPUB (or leave unpackaged for Calibre)
+        if not self.config.get('no_package'):
+            self._package_epub()
+            print(f"\nSUCCESS: {self.config['output']}")
+            print(f"  Chapters: {len(self.chapters)}")
+            print(f"  Size: {os.path.getsize(self.config['output']) / 1024:.1f} KB")
+        else:
+            print(f"\nSUCCESS: EPUB folder created at {self.temp_dir}")
+            print(f"  Chapters: {len(self.chapters)}")
+            print(f"  Ready for Calibre editing")
+            # Don't cleanup - leave folder for editing
+            return
         
-        # Cleanup
+        # Cleanup temp folder (only if packaged)
         self._cleanup()
         
-        print(f"\nSUCCESS: {self.config['output']}")
-        print(f"  Chapters: {len(self.chapters)}")
-        print(f"  Size: {os.path.getsize(self.config['output']) / 1024:.1f} KB")
+    def _consolidate_chapters(self):
+        """Consolidate all chapters into single MD file"""
+        input_dir = Path(self.config['input_dir'])
+        output_path = Path(self.config['output'])
         
+        # Find chapter files
+        chapter_files = sorted(
+            input_dir.glob("chapter-*.md"),
+            key=lambda x: int(re.search(r'chapter-(\d+)', x.name).group(1))
+        )
+        
+        if not chapter_files:
+            chapter_files = sorted(
+                input_dir.glob("chap-*.md"),
+                key=lambda x: int(re.search(r'chap-(\d+)', x.name).group(1))
+            )
+        
+        if not chapter_files:
+            raise ValueError(f"No chapter files found in {input_dir}")
+        
+        print(f"Consolidating {len(chapter_files)} chapters into single file...")
+        print(f"Output: {output_path}")
+        print()
+        
+        # Consolidate all chapters
+        consolidated = []
+        
+        for idx, chapter_file in enumerate(chapter_files, 1):
+            print(f"  Adding: {chapter_file.name}")
+            
+            with open(chapter_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+            
+            # Add chapter separator (except for first)
+            if idx > 1:
+                consolidated.append("\n\n---\n\n")
+            
+            consolidated.append(content)
+        
+        # Write consolidated file
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(''.join(consolidated))
+        
+        file_size = output_path.stat().st_size
+        print(f"\nSUCCESS: {output_path}")
+        print(f"  Chapters: {len(chapter_files)}")
+        print(f"  Size: {file_size / 1024:.1f} KB")
+        print(f"\nReady for AI review and iteration!")
+    
     def _create_structure(self):
         """Create EPUB directory structure"""
         if self.temp_dir.exists():
@@ -445,13 +506,22 @@ def load_config(args) -> Dict:
         config['output'] = args.output
     if args.cover:
         config['cover'] = args.cover
+    if args.consolidate:
+        config['consolidate'] = True
+    if args.no_package:
+        config['no_package'] = True
     
     # Defaults
     config.setdefault('title', 'Untitled')
     config.setdefault('author', 'Unknown Author')
     config.setdefault('language', 'en')
     config.setdefault('input_dir', 'manuscript')
-    config.setdefault('output', 'book.epub')
+    
+    # Output defaults depend on mode
+    if config.get('consolidate'):
+        config.setdefault('output', 'consolidated-manuscript.md')
+    else:
+        config.setdefault('output', 'book.epub')
     
     # Validate
     if not Path(config['input_dir']).exists():
@@ -477,8 +547,10 @@ Examples:
     parser.add_argument('--author', help='Author name')
     parser.add_argument('--language', default='en', help='Language code (default: en)')
     parser.add_argument('--input-dir', help='Input directory containing chapter-*.md files')
-    parser.add_argument('--output', help='Output EPUB file')
+    parser.add_argument('--output', help='Output EPUB file (or .md for consolidate mode)')
     parser.add_argument('--cover', help='Cover image (PNG/JPG)')
+    parser.add_argument('--consolidate', action='store_true', help='Merge chapters into single MD file (for editing)')
+    parser.add_argument('--no-package', action='store_true', help='Output EPUB folder structure without zipping (for Calibre editing)')
     
     args = parser.parse_args()
     
