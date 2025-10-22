@@ -178,8 +178,8 @@ class MarkdownToEpub:
         # Output file
         pandoc_cmd.extend(['-o', str(output_path)])
         
-        # PDF engine (use xelatex for better Unicode support)
-        pandoc_cmd.extend(['--pdf-engine=xelatex'])
+        # PDF engine (use lualatex for better Unicode and special character support)
+        pandoc_cmd.extend(['--pdf-engine=lualatex'])
         
         # Paper size
         paper_size = self.config.get('pdf_paper_size', 'a4')
@@ -216,6 +216,11 @@ class MarkdownToEpub:
             '-V', 'linestretch=1.5',
         ])
         
+        # Add package for better special character handling
+        pandoc_cmd.extend([
+            '--pdf-engine-opt=-shell-escape',
+        ])
+        
         print(f"\nRunning Pandoc...")
         print(f"Command: {' '.join(pandoc_cmd)}")
         
@@ -224,6 +229,7 @@ class MarkdownToEpub:
                 pandoc_cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
                 check=True
             )
             
