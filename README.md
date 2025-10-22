@@ -4,6 +4,7 @@ A clean, cross-platform Python tool to convert Markdown manuscripts into properl
 
 ## Features
 
+✅ **PDF Export** - Print-ready PDFs via Pandoc/LaTeX with customizable paper size  
 ✅ **EPUB 3.3 Standard** - W3C Recommendation compliant  
 ✅ **WCAG 2.1 Level AA** - Full accessibility support  
 ✅ **Semantic HTML** - Proper epub:type and ARIA roles  
@@ -47,7 +48,33 @@ python markdown_to_epub.py --title "My Novel" --author "Your Name"
 
 ## Modes of Operation
 
-### 1. Consolidate Mode (for AI review and iteration)
+### 1. PDF Mode (for printing) ⭐ NEW
+
+Convert chapters to PDF for printing:
+
+```bash
+python markdown_to_epub.py --pdf \
+  --title "My Novel" \
+  --author "Your Name" \
+  --input-dir manuscript/ \
+  --output my-novel.pdf
+```
+
+**Options:**
+- `--pdf-cover` - Include cover image (default: no)
+- `--no-pdf-toc` - Disable table of contents (default: includes TOC)
+- `--pdf-paper-size a4` - Paper size: a4, letter, a5, etc. (default: a4)
+
+**Use when:**
+- Printing physical copies
+- Creating print-ready PDFs
+- Professional formatting needed
+
+**Requirements:**
+- [Pandoc](https://pandoc.org/installing.html) (must be installed separately)
+- LaTeX distribution (e.g., [MiKTeX](https://miktex.org/) on Windows, [MacTeX](https://www.tug.org/mactex/) on Mac)
+
+### 2. Consolidate Mode (for AI review and iteration)
 
 Merge all chapters into a single Markdown file for easy reviewing:
 
@@ -63,7 +90,7 @@ python markdown_to_epub.py --consolidate \
 - Sharing draft with beta readers
 - Iterating on content (~25 revisions before EPUB)
 
-### 2. Unpackaged EPUB (for Calibre editing)
+### 3. Unpackaged EPUB (for Calibre editing)
 
 Create EPUB folder structure without zipping:
 
@@ -80,7 +107,7 @@ python markdown_to_epub.py --no-package \
 - Manual adjustments needed
 - Creates `_epub_temp/` folder you can import
 
-### 3. Full EPUB (for publishing)
+### 4. Full EPUB (for publishing)
 
 Create packaged EPUB file ready to publish:
 

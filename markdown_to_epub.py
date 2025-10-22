@@ -41,6 +41,11 @@ class MarkdownToEpub:
             self._consolidate_chapters()
             return
         
+        # PDF mode - convert to PDF via Pandoc
+        if self.config.get('pdf'):
+            self._convert_to_pdf()
+            return
+        
         print(f"Building EPUB: {self.config['title']}")
         print(f"Author: {self.config['author']}")
         print()
@@ -126,6 +131,121 @@ class MarkdownToEpub:
         print(f"  Chapters: {len(chapter_files)}")
         print(f"  Size: {file_size / 1024:.1f} KB")
         print(f"\nReady for AI review and iteration!")
+    
+    def _convert_to_pdf(self):
+        """Convert chapters to PDF using Pandoc and LaTeX"""
+        import subprocess
+        
+        input_dir = Path(self.config['input_dir'])
+        output_path = Path(self.config['output'])
+        
+        # Find chapter files
+        chapter_files = sorted(
+            input_dir.glob("chapter-*.md"),
+            key=lambda x: int(re.search(r'chapter-(\d+)', x.name).group(1))
+        )
+        
+        if not chapter_files:
+            chapter_files = sorted(
+                input_dir.glob("chap-*.md"),
+                key=lambda x: int(re.search(r'chap-(\d+)', x.name).group(1))
+            )
+        
+        if not chapter_files:
+            raise ValueError(f"No chapter files found in {input_dir}")
+        
+        print(f"Converting {len(chapter_files)} chapters to PDF...")
+        print(f"Output: {output_path}")
+        print(f"Paper Size: {self.config.get('pdf_paper_size', 'A4')}")
+        print(f"Include TOC: {self.config.get('pdf_toc', True)}")
+        print(f"Include Cover: {self.config.get('pdf_cover', False)}")
+        print()
+        
+        # Check for Pandoc
+        try:
+            subprocess.run(['pandoc', '--version'], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            raise RuntimeError("Pandoc is not installed. Install from https://pandoc.org/installing.html")
+        
+        # Build Pandoc command
+        pandoc_cmd = ['pandoc']
+        
+        # Add chapter files
+        for chapter_file in chapter_files:
+            print(f"  Adding: {chapter_file.name}")
+            pandoc_cmd.append(str(chapter_file))
+        
+        # Output file
+        pandoc_cmd.extend(['-o', str(output_path)])
+        
+        # PDF engine (use xelatex for better Unicode support)
+        pandoc_cmd.extend(['--pdf-engine=xelatex'])
+        
+        # Paper size
+        paper_size = self.config.get('pdf_paper_size', 'a4')
+        pandoc_cmd.extend(['-V', f'papersize={paper_size}'])
+        
+        # Table of contents
+        if self.config.get('pdf_toc', True):
+            pandoc_cmd.append('--toc')
+            pandoc_cmd.extend(['--toc-depth=2'])
+        
+        # Metadata
+        pandoc_cmd.extend(['-V', f'title={self.config["title"]}'])
+        pandoc_cmd.extend(['-V', f'author={self.config["author"]}'])
+        
+        # Cover image
+        cover_path = self.config.get('cover')
+        if self.config.get('pdf_cover', False) and cover_path and Path(cover_path).exists():
+            print(f"  Adding cover: {cover_path}")
+            # Create a temporary markdown file with cover image
+            cover_md = Path('_pdf_cover_temp.md')
+            with open(cover_md, 'w', encoding='utf-8') as f:
+                f.write(f'---\ntitle: "{self.config["title"]}"\n')
+                f.write(f'author: "{self.config["author"]}"\n---\n\n')
+                f.write(f'![Cover]({cover_path})\n\n{{.cover}}\n\n')
+                f.write('\\newpage\n\n')
+            
+            # Insert cover at the beginning
+            pandoc_cmd.insert(1, str(cover_md))
+        
+        # Additional LaTeX options for better formatting
+        pandoc_cmd.extend([
+            '-V', 'geometry:margin=1in',
+            '-V', 'fontsize=12pt',
+            '-V', 'linestretch=1.5',
+        ])
+        
+        print(f"\nRunning Pandoc...")
+        print(f"Command: {' '.join(pandoc_cmd)}")
+        
+        try:
+            result = subprocess.run(
+                pandoc_cmd,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Clean up temporary cover file
+            if self.config.get('pdf_cover', False) and Path('_pdf_cover_temp.md').exists():
+                Path('_pdf_cover_temp.md').unlink()
+            
+            file_size = output_path.stat().st_size
+            print(f"\nSUCCESS: {output_path}")
+            print(f"  Chapters: {len(chapter_files)}")
+            print(f"  Size: {file_size / 1024:.1f} KB")
+            print(f"\nReady for printing!")
+            
+        except subprocess.CalledProcessError as e:
+            # Clean up temporary cover file on error
+            if Path('_pdf_cover_temp.md').exists():
+                Path('_pdf_cover_temp.md').unlink()
+            
+            print(f"\nERROR: Pandoc conversion failed")
+            print(f"STDOUT: {e.stdout}")
+            print(f"STDERR: {e.stderr}")
+            raise RuntimeError(f"PDF conversion failed: {e.stderr}")
     
     def _create_structure(self):
         """Create EPUB directory structure"""
@@ -640,6 +760,15 @@ def load_config(args) -> Dict:
     if args.no_package:
         config['no_package'] = True
     
+    # PDF-specific args
+    if args.pdf:
+        config['pdf'] = True
+    if args.pdf_cover:
+        config['pdf_cover'] = True
+    config['pdf_toc'] = args.pdf_toc
+    if args.pdf_paper_size:
+        config['pdf_paper_size'] = args.pdf_paper_size
+    
     # Defaults
     config.setdefault('title', 'Untitled')
     config.setdefault('author', 'Unknown Author')
@@ -649,6 +778,8 @@ def load_config(args) -> Dict:
     # Output defaults depend on mode
     if config.get('consolidate'):
         config.setdefault('output', 'consolidated-manuscript.md')
+    elif config.get('pdf'):
+        config.setdefault('output', 'book.pdf')
     else:
         config.setdefault('output', 'book.epub')
     
@@ -665,9 +796,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
+  # Generate EPUB
   %(prog)s --title "My Novel" --author "Your Name"
   %(prog)s --config book.yaml
   %(prog)s --input-dir chapters/ --output my-book.epub --cover cover.png
+  
+  # Generate PDF for printing
+  %(prog)s --pdf --title "My Novel" --author "Your Name" --output novel.pdf
+  %(prog)s --pdf --pdf-cover --pdf-paper-size letter --title "My Novel"
+  
+  # Consolidate for editing
+  %(prog)s --consolidate --input-dir chapters/ --output full-draft.md
         '''
     )
     
@@ -676,10 +815,17 @@ Examples:
     parser.add_argument('--author', help='Author name')
     parser.add_argument('--language', default='en', help='Language code (default: en)')
     parser.add_argument('--input-dir', help='Input directory containing chapter-*.md files')
-    parser.add_argument('--output', help='Output EPUB file (or .md for consolidate mode)')
+    parser.add_argument('--output', help='Output EPUB file (or .md for consolidate mode, .pdf for PDF mode)')
     parser.add_argument('--cover', help='Cover image (PNG/JPG)')
     parser.add_argument('--consolidate', action='store_true', help='Merge chapters into single MD file (for editing)')
     parser.add_argument('--no-package', action='store_true', help='Output EPUB folder structure without zipping (for Calibre editing)')
+    
+    # PDF-specific options
+    parser.add_argument('--pdf', action='store_true', help='Convert to PDF using Pandoc (requires Pandoc and LaTeX)')
+    parser.add_argument('--pdf-cover', action='store_true', help='Include cover image in PDF (default: no)')
+    parser.add_argument('--pdf-toc', action='store_true', default=True, help='Include table of contents in PDF (default: yes)')
+    parser.add_argument('--no-pdf-toc', dest='pdf_toc', action='store_false', help='Disable table of contents in PDF')
+    parser.add_argument('--pdf-paper-size', default='a4', help='Paper size for PDF: a4, letter, a5, etc. (default: a4)')
     
     args = parser.parse_args()
     
