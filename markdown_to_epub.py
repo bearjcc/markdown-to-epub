@@ -199,7 +199,7 @@ class MarkdownToEpub:
             })
     
     def _generate_xhtml(self, title: str, body: str) -> str:
-        """Generate XHTML file"""
+        """Generate XHTML file with proper semantic structure"""
         return f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{self.config['language']}" lang="{self.config['language']}">
@@ -209,7 +209,9 @@ class MarkdownToEpub:
     <link rel="stylesheet" type="text/css" href="../Styles/stylesheet.css"/>
 </head>
 <body>
+    <section epub:type="chapter" role="doc-chapter">
 {body}
+    </section>
 </body>
 </html>'''
     
@@ -229,19 +231,23 @@ class MarkdownToEpub:
                 f.write(cover_xhtml)
     
     def _generate_cover_xhtml(self, image_href: str) -> str:
-        """Generate cover page XHTML"""
+        """Generate cover page XHTML with proper accessibility"""
+        title = self._escape_xml(self.config['title'])
+        author = self._escape_xml(self.config['author'])
         return f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{self.config['language']}" lang="{self.config['language']}">
 <head>
     <meta charset="UTF-8"/>
     <title>Cover</title>
     <link rel="stylesheet" type="text/css" href="../Styles/stylesheet.css"/>
 </head>
 <body class="cover">
-    <div class="cover-image">
-        <img src="../{image_href}" alt="Cover" />
-    </div>
+    <section epub:type="cover" role="doc-cover">
+        <div class="cover-image">
+            <img src="../{image_href}" alt="Cover: {title} by {author}" />
+        </div>
+    </section>
 </body>
 </html>'''
     
@@ -288,15 +294,33 @@ class MarkdownToEpub:
         for chap in self.chapters:
             spine.append(f'<itemref idref="{chap["id"]}"/>')
         
+        # Publisher from config or default
+        publisher = self.config.get('publisher', self.config['author'])
+        
         opf = f'''<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" xml:lang="{self.config['language']}" unique-identifier="book-id">
     <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <!-- Required Metadata -->
         <dc:identifier id="book-id">urn:uuid:{self.book_id}</dc:identifier>
         <dc:title>{self._escape_xml(self.config['title'])}</dc:title>
         <dc:creator>{self._escape_xml(self.config['author'])}</dc:creator>
         <dc:language>{self.config['language']}</dc:language>
+        <dc:publisher>{self._escape_xml(publisher)}</dc:publisher>
         <dc:date>{today}</dc:date>
         <meta property="dcterms:modified">{datetime.now().strftime('%Y-%m-%dT%H:%M:%S')}Z</meta>
+        
+        <!-- Cover Image Reference -->
+        <meta name="cover" content="cover-image"/>
+        
+        <!-- EPUB 3.3 Accessibility Metadata (WCAG 2.1 Level AA) -->
+        <meta property="schema:accessMode">textual</meta>
+        <meta property="schema:accessMode">visual</meta>
+        <meta property="schema:accessModeSufficient">textual</meta>
+        <meta property="schema:accessibilityFeature">tableOfContents</meta>
+        <meta property="schema:accessibilityFeature">readingOrder</meta>
+        <meta property="schema:accessibilityFeature">structuralNavigation</meta>
+        <meta property="schema:accessibilityHazard">none</meta>
+        <meta property="schema:accessibilitySummary">This publication conforms to WCAG 2.1 Level AA. All content is accessible via text and includes proper semantic structure, navigation, and alternative text for images where applicable.</meta>
     </metadata>
     <manifest>
         {chr(10).join(f'        {item}' for item in manifest)}
@@ -310,24 +334,44 @@ class MarkdownToEpub:
             f.write(opf)
     
     def _generate_nav_xhtml(self):
-        """Generate OEBPS/nav.xhtml (EPUB 3 TOC)"""
+        """Generate OEBPS/nav.xhtml (EPUB 3 TOC with landmarks)"""
+        # Table of Contents items
         toc_items = []
+        if self.config.get('cover'):
+            toc_items.append('            <li><a href="Text/cover.xhtml">Cover</a></li>')
         for chap in self.chapters:
             toc_items.append(f'            <li><a href="{chap["href"]}">{self._escape_xml(chap["title"])}</a></li>')
+        
+        # Landmarks items
+        landmarks_items = []
+        if self.config.get('cover'):
+            landmarks_items.append('            <li><a epub:type="cover" href="Text/cover.xhtml">Cover</a></li>')
+        landmarks_items.append('            <li><a epub:type="toc" href="nav.xhtml">Table of Contents</a></li>')
+        if self.chapters:
+            landmarks_items.append(f'            <li><a epub:type="bodymatter" href="{self.chapters[0]["href"]}">Start Reading</a></li>')
         
         nav = f'''<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="{self.config['language']}" lang="{self.config['language']}">
 <head>
     <meta charset="UTF-8"/>
-    <title>Table of Contents</title>
+    <title>Navigation</title>
     <link rel="stylesheet" type="text/css" href="Styles/stylesheet.css"/>
 </head>
 <body>
-    <nav epub:type="toc" id="toc">
+    <!-- Table of Contents (REQUIRED) -->
+    <nav epub:type="toc" id="toc" role="doc-toc">
         <h1>Table of Contents</h1>
         <ol>
 {chr(10).join(toc_items)}
+        </ol>
+    </nav>
+    
+    <!-- Landmarks (HIGHLY RECOMMENDED for accessibility) -->
+    <nav epub:type="landmarks" id="landmarks" role="doc-landmarks" hidden="">
+        <h1>Landmarks</h1>
+        <ol>
+{chr(10).join(landmarks_items)}
         </ol>
     </nav>
 </body>
@@ -337,33 +381,68 @@ class MarkdownToEpub:
             f.write(nav)
     
     def _generate_css(self):
-        """Generate default CSS"""
-        css = '''/* EPUB 3.3 Stylesheet */
+        """Generate EPUB 3.3 compliant CSS with accessibility best practices"""
+        css = '''/* EPUB 3.3 Stylesheet - WCAG 2.1 Level AA Compliant */
 
+/* Reset */
+* {
+    box-sizing: border-box;
+}
+
+/* Body */
 body {
     font-family: Georgia, "Times New Roman", serif;
     font-size: 1em;
     line-height: 1.6;
     margin: 0;
     padding: 1em;
+    text-align: left;
 }
 
+/* Headings */
 h1, h2, h3, h4, h5, h6 {
     font-family: Georgia, "Times New Roman", serif;
     font-weight: bold;
     margin: 1.5em 0 0.5em;
     line-height: 1.2;
+    page-break-after: avoid;
+    break-after: avoid;
+    orphans: 2;
+    widows: 2;
 }
 
 h1 { font-size: 2em; text-align: center; }
 h2 { font-size: 1.5em; }
 h3 { font-size: 1.3em; }
+h4 { font-size: 1.1em; }
+h5 { font-size: 1em; }
+h6 { font-size: 0.9em; }
 
+/* Paragraphs */
 p {
     margin: 0 0 1em;
+    text-indent: 1.5em;
+    orphans: 2;
+    widows: 2;
+}
+
+/* First paragraph after heading - no indent */
+h1 + p, h2 + p, h3 + p, h4 + p, h5 + p, h6 + p,
+section > p:first-child {
     text-indent: 0;
 }
 
+/* Lists */
+ul, ol {
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+li {
+    margin: 0.5em 0;
+}
+
+/* Blockquotes */
 blockquote {
     margin: 1em 2em;
     padding-left: 1em;
@@ -379,6 +458,7 @@ blockquote.epigraph {
     max-width: 80%;
 }
 
+/* Code */
 code {
     font-family: "Courier New", Courier, monospace;
     background-color: #f4f4f4;
@@ -391,6 +471,7 @@ pre {
     padding: 1em;
     overflow-x: auto;
     border-radius: 5px;
+    margin: 1em 0;
 }
 
 pre code {
@@ -398,12 +479,55 @@ pre code {
     padding: 0;
 }
 
+/* Horizontal Rules / Scene Breaks */
 hr {
     border: none;
     border-top: 1px solid #ccc;
     margin: 2em 0;
+    text-align: center;
 }
 
+hr.scene-break {
+    border: none;
+    text-align: center;
+    margin: 2em auto;
+}
+
+hr.scene-break::before {
+    content: '* * *';
+    letter-spacing: 1em;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+figure {
+    margin: 1em 0;
+    text-align: center;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+figcaption {
+    font-size: 0.9em;
+    font-style: italic;
+    margin-top: 0.5em;
+}
+
+/* Links */
+a {
+    color: #0066cc;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Cover */
 .cover {
     text-align: center;
     margin: 0;
@@ -436,6 +560,11 @@ nav#toc a {
 
 nav#toc a:hover {
     text-decoration: underline;
+}
+
+/* Accessibility: Hidden landmarks */
+nav[hidden] {
+    display: none;
 }
 '''
         

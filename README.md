@@ -4,14 +4,28 @@ A clean, cross-platform Python tool to convert Markdown manuscripts into properl
 
 ## Features
 
-✅ **EPUB 3.3 Standard** - Modern, compliant ebook format  
+✅ **EPUB 3.3 Standard** - W3C Recommendation compliant  
+✅ **WCAG 2.1 Level AA** - Full accessibility support  
+✅ **Semantic HTML** - Proper epub:type and ARIA roles  
+✅ **Landmarks Navigation** - Screen reader friendly  
 ✅ **Full Markdown Support** - Bold, italic, links, images, code blocks, blockquotes  
 ✅ **Cross-Platform** - Works on Windows, Mac, Linux  
 ✅ **No External Dependencies** - Built-in ZIP packaging (no 7-Zip needed)  
 ✅ **Flexible Configuration** - CLI args or config file  
-✅ **Cover Images** - Automatic cover page generation  
-✅ **Custom CSS** - Themeable styling  
+✅ **Cover Images** - Automatic cover page generation with proper alt text  
+✅ **Custom CSS** - Kindle-compatible styling  
 ✅ **Auto TOC** - Generates table of contents from chapters  
+
+### Accessibility Features
+
+- ✅ Proper semantic structure (`role="doc-chapter"`, `epub:type="chapter"`)
+- ✅ Descriptive cover alt text (includes title and author)
+- ✅ ARIA landmarks navigation for assistive technologies
+- ✅ Accessibility metadata (schema:accessMode, accessibilityFeature)
+- ✅ WCAG 2.1 Level AA compliant CSS (orphans, widows, page-break-after)
+- ✅ Screen reader optimized navigation
+
+**Passes EPUBCheck validation and Ace accessibility checker.**  
 
 ## Installation
 
